@@ -6,6 +6,7 @@ services:
       MSSQL_SA_PASSWORD: "${MSSQL_SA_PASSWORD}"
       MSSQL_PID: "Express"
     ports:
+      # Loopback saja, sesuai blueprint. Aplikasi akses via hostname service `mssql`.
       - "127.0.0.1:1433:1433"
     volumes:
       - mssql-data:/var/opt/mssql
@@ -16,6 +17,31 @@ services:
       timeout: 5s
       retries: 12
       start_period: 20s
+
+  web:
+    build: .
+    # Hanya di server: docker compose --profile prod up -d --build
+    # Lokal tetap `docker compose up -d` (hanya mssql) + `npm run dev`.
+    profiles: ["prod"]
+    restart: unless-stopped
+    depends_on:
+      mssql:
+        condition: service_healthy
+    ports:
+      - "${PORT:-3013}:3000"
+    environment:
+      MSSQL_SERVER: mssql
+      MSSQL_DATABASE: "${MSSQL_DATABASE:-InventoryDB}"
+      MSSQL_USER: "${MSSQL_USER}"
+      MSSQL_PASSWORD: "${MSSQL_PASSWORD}"
+      MSSQL_VIEWER_USER: "${MSSQL_VIEWER_USER}"
+      MSSQL_VIEWER_PASSWORD: "${MSSQL_VIEWER_PASSWORD}"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
 volumes:
   mssql-data:
